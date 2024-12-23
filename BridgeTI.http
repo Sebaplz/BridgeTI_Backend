@@ -1,0 +1,6 @@
+@BridgeTI_HostAddress = http://localhost:5137
+
+GET {{BridgeTI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
