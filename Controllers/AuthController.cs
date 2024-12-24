@@ -8,6 +8,8 @@ using System.Text;
 public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private const int MAX_ATTEMPTS = 5;
+    private const int LOCK_DURATION_MINUTES = 5;
 
     public AuthController(AppDbContext context)
     {
@@ -18,7 +20,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RegisterStudent(StudentDto studentDto)
     {
         if (await _context.Users.AnyAsync(u => u.Email == studentDto.Email))
-            return BadRequest("Email already exists.");
+            return Conflict(new { error = "Email already exists." });
 
         var user = new User
         {
@@ -39,20 +41,20 @@ public class AuthController : ControllerBase
         _context.Students.Add(student);
 
         await _context.SaveChangesAsync();
-        return Ok("Student registered successfully.");
+        return Ok(new {message = "Student registered successfully."});
     }
 
     [HttpPost("register/company")]
     public async Task<IActionResult> RegisterCompany(CompanyDto companyDto)
     {
         if (await _context.Users.AnyAsync(u => u.Email == companyDto.Email))
-            return BadRequest("Email already exists.");
+            return Conflict(new { error = "Email already exists." });
 
         var user = new User
         {
             Email = companyDto.Email,
             PasswordHash = HashPassword(companyDto.Password),
-            Role = "COMPANY_ADMIN"
+            Role = "COMPANY"
         };
 
         var company = new Company
@@ -67,18 +69,93 @@ public class AuthController : ControllerBase
         _context.Companies.Add(company);
 
         await _context.SaveChangesAsync();
-        return Ok("Company registered successfully.");
+        return Ok(new {message = "Company registered successfully."});
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login(LoginDto loginDto)
+    public async Task<IActionResult> Login(LoginDto loginDto, [FromServices] JwtService jwtService)
     {
-        var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == loginDto.Email);
-        if (user == null || user.PasswordHash != HashPassword(loginDto.Password))
-            return Unauthorized("Invalid credentials.");
+        // Verificar si la cuenta está bloqueada
+        var loginAttempt = await _context.LoginAttempts
+            .FirstOrDefaultAsync(la => la.Email == loginDto.Email);
 
-        return Ok("Login successful.");
+        if (loginAttempt != null && loginAttempt.LockedUntil.HasValue)
+        {
+            if (DateTime.UtcNow < loginAttempt.LockedUntil)
+            {
+                var minutesLeft = (loginAttempt.LockedUntil.Value - DateTime.UtcNow).Minutes;
+                return StatusCode(429, new
+                {
+                    error = $"Account is locked. Please try again in {minutesLeft} minutes."
+                });
+            }
+            else
+            {
+                // Si ya pasó el tiempo de bloqueo, reiniciar contador
+                loginAttempt.FailedAttempts = 0;
+                loginAttempt.LockedUntil = null;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Buscar usuario en la base de datos
+        var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == loginDto.Email);
+
+        if (user == null || !VerifyPassword(loginDto.Password, user.PasswordHash))
+        {
+            // Incrementar contador de intentos fallidos
+            if (loginAttempt == null)
+            {
+                loginAttempt = new LoginAttempt
+                {
+                    Email = loginDto.Email,
+                    FailedAttempts = 1
+                };
+                _context.LoginAttempts.Add(loginAttempt);
+            }
+            else
+            {
+                loginAttempt.FailedAttempts++;
+
+                // Si alcanza el máximo de intentos, bloquear la cuenta
+                if (loginAttempt.FailedAttempts >= MAX_ATTEMPTS)
+                {
+                    loginAttempt.LockedUntil = DateTime.UtcNow.AddMinutes(LOCK_DURATION_MINUTES);
+                    await _context.SaveChangesAsync();
+                    return StatusCode(429, new
+                    {
+                        error = $"Too many failed attempts. Account is locked for {LOCK_DURATION_MINUTES} minutes."
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Unauthorized(new {error = "Invalid credentials." });
+        }
+
+        // Si el login es exitoso, reiniciar el contador de intentos
+        if (loginAttempt != null)
+        {
+            loginAttempt.FailedAttempts = 0;
+            loginAttempt.LockedUntil = null;
+            await _context.SaveChangesAsync();
+        }
+
+        // Generar token JWT y continuar con el proceso normal de login
+        var token = jwtService.GenerateToken(user);
+
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = DateTime.UtcNow.AddHours(1)
+        };
+
+        Response.Cookies.Append("Role", user.Role, cookieOptions);
+
+        return Ok(new { token });
     }
+
 
     private string HashPassword(string password)
     {
