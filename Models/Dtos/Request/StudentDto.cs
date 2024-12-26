@@ -24,6 +24,6 @@ public class StudentDto
     public string Email { get; set; }
 
     [Required(ErrorMessage = "La contraseña es obligatoria")]
-    [StringLength(20, MinimumLength = 6, ErrorMessage = "La contraseña debe tener entre 6 y 20 caracteres")]
+    [StringLength(20, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 20 caracteres")]
     public string Password { get; set; }
 }
