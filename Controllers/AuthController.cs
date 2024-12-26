@@ -33,8 +33,9 @@ public class AuthController : ControllerBase
         {
             User = user,
             Name = studentDto.Name,
-            University = studentDto.University,
-            Career = studentDto.Career
+            FirstLastName = studentDto.FirstLastName,
+            SecondLastName = studentDto.SecondLastName,
+            Rut = studentDto.Rut
         };
 
         _context.Users.Add(user);
