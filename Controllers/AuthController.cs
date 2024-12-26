@@ -20,7 +20,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> RegisterStudent(StudentDto studentDto)
     {
         if (await _context.Users.AnyAsync(u => u.Email == studentDto.Email))
-            return Conflict(new { error = "Email already exists." });
+            return Conflict(new { error = "El email ya existe." });
 
         var user = new User
         {
@@ -42,14 +42,14 @@ public class AuthController : ControllerBase
         _context.Students.Add(student);
 
         await _context.SaveChangesAsync();
-        return Ok(new {message = "Student registered successfully."});
+        return Ok(new {message = "El estudiante se ha registrado con éxito." });
     }
 
     [HttpPost("register/company")]
     public async Task<IActionResult> RegisterCompany(CompanyDto companyDto)
     {
         if (await _context.Users.AnyAsync(u => u.Email == companyDto.Email))
-            return Conflict(new { error = "Email already exists." });
+            return Conflict(new { error = "El email ya existe." });
 
         var user = new User
         {
@@ -70,7 +70,7 @@ public class AuthController : ControllerBase
         _context.Companies.Add(company);
 
         await _context.SaveChangesAsync();
-        return Ok(new {message = "Company registered successfully."});
+        return Ok(new {message = "La empresa se ha registrado con éxito." });
     }
 
     [HttpPost("login")]
@@ -87,7 +87,7 @@ public class AuthController : ControllerBase
                 var minutesLeft = (loginAttempt.LockedUntil.Value - DateTime.UtcNow).Minutes;
                 return StatusCode(429, new
                 {
-                    error = $"Account is locked. Please try again in {minutesLeft} minutes."
+                    error = $"La cuenta está bloqueada. Por favor, inténtalo de nuevo en {minutesLeft} minutos."
                 });
             }
             else
@@ -125,13 +125,13 @@ public class AuthController : ControllerBase
                     await _context.SaveChangesAsync();
                     return StatusCode(429, new
                     {
-                        error = $"Too many failed attempts. Account is locked for {LOCK_DURATION_MINUTES} minutes."
+                        error = $"Demasiados intentos fallidos. La cuenta está bloqueada por {LOCK_DURATION_MINUTES} minutos."
                     });
                 }
             }
 
             await _context.SaveChangesAsync();
-            return Unauthorized(new {error = "Invalid credentials." });
+            return Unauthorized(new {error = "Credenciales invalidas!" });
         }
 
         // Si el login es exitoso, reiniciar el contador de intentos
