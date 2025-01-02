@@ -91,4 +91,17 @@ public class JobsController : ControllerBase
 
         return Ok(new { message = "El aviso de trabajo se ha creado con éxito." });
     }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetJobPosting([FromRoute] int id)
+    {
+        var jobPosting = await _context.JobPostings
+            .Include(jp => jp.Company)
+            .FirstOrDefaultAsync(jp => jp.InternshipId == id);
+        if (jobPosting == null)
+        {
+            return NotFound(new { error = "Aviso de trabajo no encontrado." });
+        }
+        return Ok(jobPosting);
+    }
 }
