@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public DbSet<Student> Students { get; set; }
     public DbSet<Company> Companies { get; set; }
     public DbSet<LoginAttempt> LoginAttempts { get; set; }
+    public DbSet<JobPosting> JobPostings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,5 +21,11 @@ public class AppDbContext : DbContext
             .HasOne(u => u.Company)
             .WithOne(c => c.User)
             .HasForeignKey<Company>(c => c.UserId);
+
+        modelBuilder.Entity<JobPosting>()
+            .HasOne(j => j.Company)
+            .WithMany()
+            .HasForeignKey(j => j.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
